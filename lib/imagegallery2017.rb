@@ -58,7 +58,7 @@ class ImageGallery2017
 
     end
 
-    def add_entry(uploaded)
+    def add_entry(uploaded=nil)
 
       filename = uploaded[:filename]    
       file = File.join(@imagespath, filename)    
@@ -91,7 +91,7 @@ class ImageGallery2017
       FileUtils.mkdir_p File.join(filepath, 'www','images')
       FileUtils.mkdir_p File.join(filepath, 'www','xsl')
       super(rsc, filepath: filepath, schema: 'images[title, folder]/image' + 
-        '(original, desktop, preview)')
+        '(original, desktop, preview, path, imgcount, title)')
 
     end
 
@@ -113,6 +113,7 @@ class ImageGallery2017
 
     @basepath, @rsc = basepath, rsc
     @index = IndexGallery.new rsc, filepath: @basepath
+    @gallery = {}
 
   end
 
@@ -123,10 +124,12 @@ class ImageGallery2017
   def create_folder(title)    
 
     fg = Gallery.new @rsc, schema: 'images[title, folder]/image(original, ' +
-      'desktop, preview)', filepath: @basepath, title: title, 
+      'desktop, preview, title)', filepath: @basepath, title: title, 
        xslfile: 'images.xsl'
 
     @gallery[fg.folder] = fg    
+    @index.create preview: '../svg/folder.svg', path: fg.folder, title: title
+    @index.save
 
   end
 end
