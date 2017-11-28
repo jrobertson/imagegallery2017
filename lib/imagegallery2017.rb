@@ -18,47 +18,37 @@ class ImageGallery2017
 
     attr_reader :folder
 
-    def initialize(rsc, filepath: '.', xslfile: 'index.xslt',  
-          schema: nil, title: nil)
+    def initialize(rsc, filepath: '.', xslfile: '../xsl/index.xslt',  
+          schema: 'images[title, folder]/image(original, desktop, preview, ' + 
+                  'folder, imgcount, title)', folder: nil)
 
-      @rsc = rsc
-      @wwwpath = File.join(filepath, 'www')
-      @xslfile = xslfile
-
-      @folder = ''
+      @rsc, @wwwpath, @xslfile = [rsc, File.join(filepath, 'www'), xslfile]
 
       a = [@wwwpath, 'images']
-
-      if title then
-
-        @folder = title.downcase.gsub(/\W/,'-').gsub(/-{2,}/,'-')\
-          .gsub(/^-|-$/,'')
-
-        a << @folder
-
-      end
+      a << folder if folder
       
       @imagespath = File.join(*a)
 
       FileUtils.mkdir_p @imagespath
 
       dxfilepath = File.join(@imagespath, 'dynarex.xml')
-
-      if schema then
+      
+      if File.exists? dxfilepath then
+        super(dxfilepath)
+      else
 
         super(schema)
         self.order = :descending
-        self.title = title || 'Image gallery'
-        self.summary[:folder] = @folder
+        self.title = 'Image gallery'
+        self.xslt = xslfile
+
         self.save dxfilepath
 
-      else
-        super(dxfilepath)
       end
 
     end
 
-    def add_entry(uploaded=nil)
+    def add_image(uploaded=nil)
 
       filename = uploaded[:filename]    
       file = File.join(@imagespath, filename)    
@@ -72,12 +62,13 @@ class ImageGallery2017
 
       self.create(h)
       self.save
+
     end
 
     def render()
 
       doc   = Nokogiri::XML(self.to_xml)
-      xslt  = Nokogiri::XSLT(File.read(File.join(@wwwpath, @xslfile)))
+      xslt  = Nokogiri::XSLT(File.read(File.join(@wwwpath, @xslt)))
       xslt.transform(doc).to_s
 
     end
@@ -90,13 +81,8 @@ class ImageGallery2017
 
       FileUtils.mkdir_p File.join(filepath, 'www','images')
       FileUtils.mkdir_p File.join(filepath, 'www','xsl')
-      super(rsc, filepath: filepath, schema: 'images[title, folder]/image' + 
-        '(original, desktop, preview, path, imgcount, title)')
+      super(rsc, filepath: filepath)
 
-    end
-
-    def modify_entry(id)
-      #self.find_by_id()
     end
 
     def render()
@@ -114,21 +100,38 @@ class ImageGallery2017
     @basepath, @rsc = basepath, rsc
     @index = IndexGallery.new rsc, filepath: @basepath
     @gallery = {}
+    
+    # load all the folders
+    
+    @index.all.each do |x|
+
+      if x.folder.length > 0 then
+        @gallery[x.folder] = Gallery.new @rsc, 
+            filepath: basepath, folder: x.folder
+      end
+      
+    end
 
   end
 
-  def add_entry(params)
-    @index.add_entry params
+  def add_image(upload_obj, folder=nil)
+    
+    (folder ? @gallery[folder] : @index).add_image upload_obj
+    
   end
 
   def create_folder(title)    
 
-    fg = Gallery.new @rsc, schema: 'images[title, folder]/image(original, ' +
-      'desktop, preview, title)', filepath: @basepath, title: title, 
-       xslfile: 'images.xsl'
+    folder = title.downcase.gsub(/\W/,'-').gsub(/-{2,}/,'-').gsub(/^-|-$/,'')
 
-    @gallery[fg.folder] = fg    
-    @index.create preview: '../svg/folder.svg', path: fg.folder, title: title
+    fg = Gallery.new @rsc, filepath: @basepath, xslfile: '../xsl/images.xsl', 
+        folder: folder
+    fg.title = title
+    fg.summary[:folder] = folder
+    fg.save
+    
+    @gallery[folder] = fg    
+    @index.create preview: '../svg/folder.svg', folder: folder, title: title
     @index.save
 
   end
