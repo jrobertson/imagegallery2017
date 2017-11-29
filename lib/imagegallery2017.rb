@@ -70,6 +70,10 @@ class ImageGallery2017
       
       return preview_file
     end
+    
+    def delete_image(id)
+      self.delete id
+    end
 
     def render()
 
@@ -137,7 +141,7 @@ class ImageGallery2017
 
   def add_image(upload_obj, folder=nil)
     
-    @log.info 'ImageGallery/add_image: active' if @log
+    @log.info 'ImageGallery/add_image: activel;folder' + folder.to_s if @log
     
     if folder then 
       
@@ -180,7 +184,7 @@ class ImageGallery2017
       @index.delete_image id
     end
     
-    @iondex.render
+    @index.render
     
   end
 
