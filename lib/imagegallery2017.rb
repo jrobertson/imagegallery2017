@@ -20,9 +20,10 @@ class ImageGallery2017
 
     def initialize(rsc, filepath: '.', xslfile: '../xsl/index.xslt',  
           schema: 'images[title, folder]/image(original, desktop, preview, ' + 
-                  'folder, imgcount, title)', folder: nil)
+                  'folder, imgcount, title)', folder: nil, log: nil)
 
       @rsc, @wwwpath, @xslfile = [rsc, File.join(filepath, 'www'), xslfile]
+      @log = log
 
       a = [@wwwpath, 'images']
       a << folder if folder
@@ -45,11 +46,14 @@ class ImageGallery2017
         self.save dxfilepath
 
       end
+      @log.info 'Gallery/initialize: self.summary' + self.summary.inspect if @log
 
     end
 
     def add_image(uploaded=nil)
 
+      @log.info 'Gallery/add_image: active' if @log
+      
       filename = uploaded[:filename]    
       file = File.join(@imagespath, filename)    
       File.write file, uploaded[:tempfile].read
@@ -62,13 +66,23 @@ class ImageGallery2017
 
       self.create(h)
       self.save
-
+      @log.info 'Gallery/add_image: saved' if @log
+      
+      return preview_file
     end
 
     def render()
 
+      @log.info 'Gallery/render: active' if @log
+      @log.info 'Gallery/render: self.to_xml' + self.to_xml if @log
+      
       doc   = Nokogiri::XML(self.to_xml)
-      xslt  = Nokogiri::XSLT(File.read(File.join(@wwwpath, @xslt)))
+      
+      if @log then
+        @log.info "Gallery/render: self.summary: %s" % [self.summary.inspect]
+      end
+      
+      xslt  = Nokogiri::XSLT(File.read(File.join(@imagespath, self.summary[:xslt])))
       xslt.transform(doc).to_s
 
     end
@@ -77,15 +91,17 @@ class ImageGallery2017
 
   class IndexGallery < Gallery
 
-    def initialize(rsc, filepath: '.')
+    def initialize(rsc, filepath: '.', log: nil)
 
       FileUtils.mkdir_p File.join(filepath, 'www','images')
       FileUtils.mkdir_p File.join(filepath, 'www','xsl')
-      super(rsc, filepath: filepath)
+      super(rsc, filepath: filepath, log: log)
 
     end
 
     def render()
+      
+      @log.info 'IndexGallery/render: active' if @log
       
       File.write File.join(@wwwpath, 'index.html'), super()
 
@@ -95,19 +111,24 @@ class ImageGallery2017
 
   attr_reader :index, :gallery
 
-  def initialize(rsc, basepath='.')
+  def initialize(rsc, basepath='.', log: nil)
 
-    @basepath, @rsc = basepath, rsc
-    @index = IndexGallery.new rsc, filepath: @basepath
+    log.info 'ImageGallery/initialize: active' if log
+    @basepath = basepath
+    @index = IndexGallery.new rsc, filepath: @basepath, log: log
     @gallery = {}
+    @default_folder = '../svg/folder.svg'
+    @log = log
     
     # load all the folders
     
+    log.info 'ImageGallery/initialize: loading galleries' if log
     @index.all.each do |x|
 
       if x.folder.length > 0 then
-        @gallery[x.folder] = Gallery.new @rsc, 
-            filepath: basepath, folder: x.folder
+        @gallery[x.folder] = Gallery.new rsc, 
+            filepath: basepath, folder: x.folder, log: log
+        log.info 'ImageGallery/initialize: loaded ' + x.folder if log
       end
       
     end
@@ -116,7 +137,50 @@ class ImageGallery2017
 
   def add_image(upload_obj, folder=nil)
     
-    (folder ? @gallery[folder] : @index).add_image upload_obj
+    @log.info 'ImageGallery/add_image: active' if @log
+    
+    if folder then 
+      
+      g = @gallery[folder]
+      preview_file = g.add_image upload_obj
+      
+      rx = @index.find_by_folder folder
+      rx.preview = preview_file
+      rx.imgcount = g.all.length
+      
+      @index.save
+      
+    else
+      @index.add_image upload_obj
+    end
+    
+    @index.render
+    
+  end
+  
+  def browse(folder)
+    (folder ? @gallery[folder] : @index).render
+  end
+  
+  def delete_image(id, folder=nil)
+    
+    if folder then 
+      
+      g = @gallery[folder]
+      g.delete_image id
+      preview_file = g.all.any? ? g.all.first.preview : @default_folder
+      
+      rx = @index.find_by_folder folder
+      rx.preview = preview_file
+      rx.imgcount = g.all.length
+      
+      @index.save
+      
+    else
+      @index.delete_image id
+    end
+    
+    @iondex.render
     
   end
 
@@ -131,8 +195,18 @@ class ImageGallery2017
     fg.save
     
     @gallery[folder] = fg    
-    @index.create preview: '../svg/folder.svg', folder: folder, title: title
+    @index.create preview: @default_folder, folder: folder, title: title
     @index.save
 
   end
+  
+  def delete_folder(folder)    
+
+    @gallery.delete folder
+    
+    rx = @index.find_by_folder folder
+    rx.delete
+    @index.save
+
+  end  
 end
