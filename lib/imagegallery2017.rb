@@ -29,7 +29,8 @@ class ImageGallery2017
       a << folder if folder
       
       @imagespath = File.join(*a)
-
+      
+      @log.info 'Gallery/initialize: imagespath: ' + @imagespath.inspect if @log
       FileUtils.mkdir_p @imagespath
 
       dxfilepath = File.join(@imagespath, 'dynarex.xml')
@@ -40,13 +41,17 @@ class ImageGallery2017
 
         super(schema)
         self.order = :descending
+        self.default_key = 'uid'
         self.title = 'Image gallery'
         self.xslt = xslfile
 
         self.save dxfilepath
 
       end
-      @log.info 'Gallery/initialize: self.summary' + self.summary.inspect if @log
+      
+      if @log then
+        @log.info 'Gallery/initialize: self.summary' + self.summary.inspect 
+      end
 
     end
 
@@ -86,7 +91,8 @@ class ImageGallery2017
         @log.info "Gallery/render: self.summary: %s" % [self.summary.inspect]
       end
       
-      xslt  = Nokogiri::XSLT(File.read(File.join(@imagespath, self.summary[:xslt])))
+      xslt  = Nokogiri::XSLT(File.read(File.join(@imagespath, 
+                                                 self.summary[:xslt])))
       xslt.transform(doc).to_s
 
     end
@@ -115,14 +121,15 @@ class ImageGallery2017
 
   attr_reader :index, :gallery
 
-  def initialize(rsc, basepath='.', log: nil)
+  def initialize(rsc, basepath='.', log: nil, imgxsl: '../../xsl/images.xsl', 
+                 default_folder: '../../svg/folder.svg')
 
     log.info 'ImageGallery/initialize: active' if log
     @basepath = basepath
     @index = IndexGallery.new rsc, filepath: @basepath, log: log
     @gallery = {}
-    @default_folder = '../svg/folder.svg'
-    @log = log
+
+    @default_folder, @log, @imgxsl = default_folder, log, imgxsl
     
     # load all the folders
     
@@ -141,7 +148,7 @@ class ImageGallery2017
 
   def add_image(upload_obj, folder=nil)
     
-    @log.info 'ImageGallery/add_image: activel;folder' + folder.to_s if @log
+    @log.info 'ImageGallery/add_image: active; folder: ' + folder.to_s if @log
     
     if folder then 
       
@@ -190,18 +197,27 @@ class ImageGallery2017
 
   def create_folder(title)    
 
-    folder = title.downcase.gsub(/\W/,'-').gsub(/-{2,}/,'-').gsub(/^-|-$/,'')
 
-    fg = Gallery.new @rsc, filepath: @basepath, xslfile: '../xsl/images.xsl', 
-        folder: folder
+    folder = title.downcase.gsub(/\W/,'-').gsub(/-{2,}/,'-').gsub(/^-|-$/,'')
+    
+    if @log then
+      @log.info "ImageGallery/create_folder: title: %s basepath: %s" % 
+          [title, @basepath.inspect]
+    end
+    fg = Gallery.new @rsc, filepath: @basepath, xslfile: @imgxsl, 
+        folder: folder, log: @log
     fg.title = title
     fg.summary[:folder] = folder
     fg.save
     
-    @gallery[folder] = fg    
+    @log.info 'ImageGallery/create_folder: saved' if @log
+    
+    @gallery[folder] = fg
+    @log.info 'ImageGallery/create_folder: folder: ' + folder.inspect if @log    
     @index.create preview: @default_folder, folder: folder, title: title
     @index.save
-
+    @index.render
+    
   end
   
   def delete_folder(folder)    
@@ -211,6 +227,7 @@ class ImageGallery2017
     rx = @index.find_by_folder folder
     rx.delete
     @index.save
-
+    @index.render
+    
   end  
 end
