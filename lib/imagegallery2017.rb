@@ -125,7 +125,7 @@ class ImageGallery2017
                  default_folder: '../../svg/folder.svg')
 
     log.info 'ImageGallery/initialize: active' if log
-    @basepath = basepath
+    @rsc, @basepath = rsc, basepath 
     @index = IndexGallery.new rsc, filepath: @basepath, log: log
     @gallery = {}
 
