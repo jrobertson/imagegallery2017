@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name = 'imagegallery2017'
-  s.version = '0.1.6'
+  s.version = '0.1.7'
   s.summary = 'An experimental personal project to build a ' + 
      'basic image gallery. Uses an external object for processing images sizes.'
   s.authors = ['James Robertson']

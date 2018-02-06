@@ -59,7 +59,7 @@ class ImageGallery2017
 
       @log.info 'Gallery/add_image: active' if @log
       
-      filename = uploaded[:filename]    
+      filename = uploaded[:filename].gsub(/ +/,'-')    
       file = File.join(@imagespath, filename)    
       File.write file, uploaded[:tempfile].read
           
